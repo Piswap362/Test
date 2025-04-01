@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ربط محفظة TON</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --primary-color: #0088cc;
+            --secondary-color: #f0f0f0;
+            --text-color: #333;
+            --success-color: #4CAF50;
+            --error-color: #f44336;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: var(--text-color);
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .wallet-info {
+            display: none;
+            background: var(--secondary-color);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .info-item {
+            margin-bottom: 15px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .wallet-address {
+            font-family: monospace;
+            background: #eee;
+            padding: 10px;
+            border-radius: 6px;
+            word-break: break-all;
+            margin-top: 5px;
+        }
+        
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        
+        .btn-disconnect {
+            background: var(--error-color);
+            margin-top: 15px;
+        }
+        
+        .btn-connect {
+            margin-bottom: 20px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary-color);
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: var(--error-color);
+            text-align: center;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .success-message {
+            color: var(--success-color);
+            text-align: center;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .copy-btn {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ربط محفظة TON</h1>
+        
+        <div class="error-message" id="errorMsg"></div>
+        <div class="success-message" id="successMsg"></div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>جاري الاتصال بالمحفظة...</p>
+        </div>
+        
+        <button class="btn btn-connect" id="connectBtn">
+            <i class="fab fa-telegram"></i> الاتصال بمحفظة Telegram
+        </button>
+        
+        <div class="wallet-info" id="walletInfo">
+            <h2>معلومات المحفظة والمستخدم</h2>
+            
+            <div class="info-item">
+                <div class="info-label">اسم المستخدم:</div>
+                <div id="userName"></div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">معرف المستخدم:</div>
+                <div id="userId"></div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">لغة المستخدم:</div>
+                <div id="userLanguage"></div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">عنوان المحفظة:</div>
+                <div class="wallet-address" id="walletAddress"></div>
+                <button class="copy-btn" id="copyBtn">نسخ العنوان</button>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">نظام التشغيل:</div>
+                <div id="platform"></div>
+            </div>
+            
+            <button class="btn btn-disconnect" id="disconnectBtn">
+                <i class="fas fa-unlink"></i> قطع الاتصال
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const walletInfo = document.getElementById('walletInfo');
+            const loading = document.getElementById('loading');
+            const errorMsg = document.getElementById('errorMsg');
+            const successMsg = document.getElementById('successMsg');
+            const walletAddress = document.getElementById('walletAddress');
+            const copyBtn = document.getElementById('copyBtn');
+            
+            // التحقق مما إذا كان التطبيق يعمل داخل Telegram
+            const isTelegram = window.Telegram && window.Telegram.WebApp;
+            
+            if (!isTelegram) {
+                showError('هذا التطبيق يعمل فقط داخل Telegram. يرجى فتحه من خلال بوت Telegram.');
+                connectBtn.disabled = true;
+                return;
+            }
+            
+            const tgWebApp = window.Telegram.WebApp;
+            
+            // تهيئة التطبيق
+            tgWebApp.expand();
+            tgWebApp.enableClosingConfirmation();
+            tgWebApp.setHeaderColor('#0088cc');
+            tgWebApp.setBackgroundColor('#f5f5f5');
+            
+            // التحقق من اتصال سابق
+            checkPreviousConnection();
+            
+            // زر الاتصال
+            connectBtn.addEventListener('click', connectWallet);
+            
+            // زر قطع الاتصال
+            disconnectBtn.addEventListener('click', disconnectWallet);
+            
+            // زر نسخ العنوان
+            copyBtn.addEventListener('click', copyAddress);
+            
+            // دالة الاتصال بالمحفظة
+            async function connectWallet() {
+                try {
+                    showLoading();
+                    hideError();
+                    
+                    // طلب إذن الوصول إلى المحفظة
+                    const result = await tgWebApp.sendData(JSON.stringify({
+                        type: 'ton_requestAccount'
+                    }));
+                    
+                    if (!result) {
+                        throw new Error('لم يتم توفير عنوان المحفظة');
+                    }
+                    
+                    // معالجة النتيجة
+                    const data = typeof result === 'string' ? JSON.parse(result) : result;
+                    
+                    if (!data.address) {
+                        throw new Error('عنوان المحفظة غير متاح');
+                    }
+                    
+                    // حفظ البيانات
+                    localStorage.setItem('tonWalletData', JSON.stringify({
+                        address: data.address,
+                        user: tgWebApp.initDataUnsafe.user
+                    }));
+                    
+                    // عرض المعلومات
+                    displayWalletInfo(data.address, tgWebApp.initDataUnsafe.user);
+                    showSuccess('تم الاتصال بالمحفظة بنجاح!');
+                    
+                } catch (error) {
+                    showError(`خطأ في الاتصال: ${error.message}`);
+                } finally {
+                    hideLoading();
+                }
+            }
+            
+            // دالة عرض معلومات المحفظة
+            function displayWalletInfo(address, user) {
+                walletInfo.style.display = 'block';
+                connectBtn.style.display = 'none';
+                
+                // عرض عنوان المحفظة
+                walletAddress.textContent = address;
+                
+                // عرض معلومات المستخدم إذا كانت متاحة
+                if (user) {
+                    document.getElementById('userName').textContent = 
+                        `${user.first_name || ''} ${user.last_name || ''} (${user.username || 'لا يوجد'})`;
+                    document.getElementById('userId').textContent = user.id;
+                }
+                
+                // معلومات إضافية
+                document.getElementById('userLanguage').textContent = tgWebApp.colorScheme;
+                document.getElementById('platform').textContent = tgWebApp.platform;
+            }
+            
+            // دالة قطع الاتصال
+            function disconnectWallet() {
+                localStorage.removeItem('tonWalletData');
+                walletInfo.style.display = 'none';
+                connectBtn.style.display = 'flex';
+                showSuccess('تم قطع الاتصال بالمحفظة');
+            }
+            
+            // دالة التحقق من اتصال سابق
+            function checkPreviousConnection() {
+                const savedData = localStorage.getItem('tonWalletData');
+                
+                if (savedData) {
+                    const { address, user } = JSON.parse(savedData);
+                    displayWalletInfo(address, user);
+                }
+            }
+            
+            // دالة نسخ العنوان
+            function copyAddress() {
+                navigator.clipboard.writeText(walletAddress.textContent)
+                    .then(() => {
+                        const originalText = copyBtn.textContent;
+                        copyBtn.textContent = 'تم النسخ!';
+                        setTimeout(() => {
+                            copyBtn.textContent = originalText;
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        showError('فشل نسخ العنوان: ' + err.message);
+                    });
+            }
+            
+            // دوال مساعدة للعرض
+            function showLoading() {
+                loading.style.display = 'block';
+                connectBtn.style.display = 'none';
+            }
+            
+            function hideLoading() {
+                loading.style.display = 'none';
+            }
+            
+            function showError(message) {
+                errorMsg.textContent = message;
+                errorMsg.style.display = 'block';
+                successMsg.style.display = 'none';
+            }
+            
+            function hideError() {
+                errorMsg.style.display = 'none';
+            }
+            
+            function showSuccess(message) {
+                successMsg.textContent = message;
+                successMsg.style.display = 'block';
+                errorMsg.style.display = 'none';
+            }
+        });
+    </script>
+    
+    <!-- روابط أيقونات Font Awesome -->
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</body>
+</html>
