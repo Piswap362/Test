@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ربط محفظة TON</title>
+    <title>TON Wallet Connection</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -142,51 +142,51 @@
 </head>
 <body>
     <div class="container">
-        <h1>ربط محفظة TON</h1>
+        <h1>Connect TON Wallet</h1>
         
         <div class="error-message" id="errorMsg"></div>
         <div class="success-message" id="successMsg"></div>
         
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>جاري الاتصال بالمحفظة...</p>
+            <p>Connecting to wallet...</p>
         </div>
         
         <button class="btn btn-connect" id="connectBtn">
-            <i class="fab fa-telegram"></i> الاتصال بمحفظة Telegram
+            <i class="fab fa-telegram"></i> Connect Telegram Wallet
         </button>
         
         <div class="wallet-info" id="walletInfo">
-            <h2>معلومات المحفظة والمستخدم</h2>
+            <h2>Wallet & User Information</h2>
             
             <div class="info-item">
-                <div class="info-label">اسم المستخدم:</div>
+                <div class="info-label">Username:</div>
                 <div id="userName"></div>
             </div>
             
             <div class="info-item">
-                <div class="info-label">معرف المستخدم:</div>
+                <div class="info-label">User ID:</div>
                 <div id="userId"></div>
             </div>
             
             <div class="info-item">
-                <div class="info-label">لغة المستخدم:</div>
+                <div class="info-label">Language:</div>
                 <div id="userLanguage"></div>
             </div>
             
             <div class="info-item">
-                <div class="info-label">عنوان المحفظة:</div>
+                <div class="info-label">Wallet Address:</div>
                 <div class="wallet-address" id="walletAddress"></div>
-                <button class="copy-btn" id="copyBtn">نسخ العنوان</button>
+                <button class="copy-btn" id="copyBtn">Copy Address</button>
             </div>
             
             <div class="info-item">
-                <div class="info-label">نظام التشغيل:</div>
+                <div class="info-label">Platform:</div>
                 <div id="platform"></div>
             </div>
             
             <button class="btn btn-disconnect" id="disconnectBtn">
-                <i class="fas fa-unlink"></i> قطع الاتصال
+                <i class="fas fa-unlink"></i> Disconnect
             </button>
         </div>
     </div>
@@ -202,103 +202,110 @@
             const walletAddress = document.getElementById('walletAddress');
             const copyBtn = document.getElementById('copyBtn');
             
-            // التحقق مما إذا كان التطبيق يعمل داخل Telegram
+            // Check if running in Telegram
             const isTelegram = window.Telegram && window.Telegram.WebApp;
             
             if (!isTelegram) {
-                showError('هذا التطبيق يعمل فقط داخل Telegram. يرجى فتحه من خلال بوت Telegram.');
+                showError('This app only works within Telegram. Please open it through a Telegram bot.');
                 connectBtn.disabled = true;
                 return;
             }
             
             const tgWebApp = window.Telegram.WebApp;
             
-            // تهيئة التطبيق
+            // Initialize WebApp
             tgWebApp.expand();
             tgWebApp.enableClosingConfirmation();
             tgWebApp.setHeaderColor('#0088cc');
             tgWebApp.setBackgroundColor('#f5f5f5');
             
-            // التحقق من اتصال سابق
+            // Check for previous connection
             checkPreviousConnection();
             
-            // زر الاتصال
+            // Connect button
             connectBtn.addEventListener('click', connectWallet);
             
-            // زر قطع الاتصال
+            // Disconnect button
             disconnectBtn.addEventListener('click', disconnectWallet);
             
-            // زر نسخ العنوان
+            // Copy address button
             copyBtn.addEventListener('click', copyAddress);
             
-            // دالة الاتصال بالمحفظة
+            // Main wallet connection function
             async function connectWallet() {
                 try {
                     showLoading();
                     hideError();
                     
-                    // طلب إذن الوصول إلى المحفظة
-                    const result = await tgWebApp.sendData(JSON.stringify({
-                        type: 'ton_requestAccount'
-                    }));
-                    
-                    if (!result) {
-                        throw new Error('لم يتم توفير عنوان المحفظة');
-                    }
-                    
-                    // معالجة النتيجة
-                    const data = typeof result === 'string' ? JSON.parse(result) : result;
-                    
-                    if (!data.address) {
-                        throw new Error('عنوان المحفظة غير متاح');
-                    }
-                    
-                    // حفظ البيانات
-                    localStorage.setItem('tonWalletData', JSON.stringify({
-                        address: data.address,
-                        user: tgWebApp.initDataUnsafe.user
-                    }));
-                    
-                    // عرض المعلومات
-                    displayWalletInfo(data.address, tgWebApp.initDataUnsafe.user);
-                    showSuccess('تم الاتصال بالمحفظة بنجاح!');
+                    // Request wallet access using the correct method
+                    tgWebApp.openInvoice('ton://wallet', function(result) {
+                        if (result === 'paid') {
+                            // After wallet access is granted, request the address
+                            tgWebApp.sendData(JSON.stringify({
+                                type: 'ton_getAddress'
+                            }), function(addressData) {
+                                try {
+                                    const data = typeof addressData === 'string' ? JSON.parse(addressData) : addressData;
+                                    
+                                    if (!data || !data.address) {
+                                        throw new Error('Wallet address not provided');
+                                    }
+                                    
+                                    // Save data
+                                    localStorage.setItem('tonWalletData', JSON.stringify({
+                                        address: data.address,
+                                        user: tgWebApp.initDataUnsafe.user
+                                    }));
+                                    
+                                    // Display info
+                                    displayWalletInfo(data.address, tgWebApp.initDataUnsafe.user);
+                                    showSuccess('Wallet connected successfully!');
+                                } catch (error) {
+                                    showError(`Connection error: ${error.message}`);
+                                } finally {
+                                    hideLoading();
+                                }
+                            });
+                        } else {
+                            throw new Error('Wallet access denied by user');
+                        }
+                    });
                     
                 } catch (error) {
-                    showError(`خطأ في الاتصال: ${error.message}`);
-                } finally {
+                    showError(`Connection error: ${error.message}`);
                     hideLoading();
                 }
             }
             
-            // دالة عرض معلومات المحفظة
+            // Display wallet info
             function displayWalletInfo(address, user) {
                 walletInfo.style.display = 'block';
                 connectBtn.style.display = 'none';
                 
-                // عرض عنوان المحفظة
+                // Show wallet address
                 walletAddress.textContent = address;
                 
-                // عرض معلومات المستخدم إذا كانت متاحة
+                // Show user info if available
                 if (user) {
                     document.getElementById('userName').textContent = 
-                        `${user.first_name || ''} ${user.last_name || ''} (${user.username || 'لا يوجد'})`;
+                        `${user.first_name || ''} ${user.last_name || ''} (${user.username || 'N/A'})`;
                     document.getElementById('userId').textContent = user.id;
                 }
                 
-                // معلومات إضافية
+                // Additional info
                 document.getElementById('userLanguage').textContent = tgWebApp.colorScheme;
                 document.getElementById('platform').textContent = tgWebApp.platform;
             }
             
-            // دالة قطع الاتصال
+            // Disconnect wallet
             function disconnectWallet() {
                 localStorage.removeItem('tonWalletData');
                 walletInfo.style.display = 'none';
                 connectBtn.style.display = 'flex';
-                showSuccess('تم قطع الاتصال بالمحفظة');
+                showSuccess('Wallet disconnected');
             }
             
-            // دالة التحقق من اتصال سابق
+            // Check for previous connection
             function checkPreviousConnection() {
                 const savedData = localStorage.getItem('tonWalletData');
                 
@@ -308,22 +315,22 @@
                 }
             }
             
-            // دالة نسخ العنوان
+            // Copy address to clipboard
             function copyAddress() {
                 navigator.clipboard.writeText(walletAddress.textContent)
                     .then(() => {
                         const originalText = copyBtn.textContent;
-                        copyBtn.textContent = 'تم النسخ!';
+                        copyBtn.textContent = 'Copied!';
                         setTimeout(() => {
                             copyBtn.textContent = originalText;
                         }, 2000);
                     })
                     .catch(err => {
-                        showError('فشل نسخ العنوان: ' + err.message);
+                        showError('Failed to copy: ' + err.message);
                     });
             }
             
-            // دوال مساعدة للعرض
+            // Helper functions
             function showLoading() {
                 loading.style.display = 'block';
                 connectBtn.style.display = 'none';
@@ -351,7 +358,7 @@
         });
     </script>
     
-    <!-- روابط أيقونات Font Awesome -->
+    <!-- Font Awesome for icons -->
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
 </body>
 </html>
